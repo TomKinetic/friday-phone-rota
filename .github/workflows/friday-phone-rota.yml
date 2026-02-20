@@ -2,8 +2,8 @@ name: Friday MFA Phone Rota
 
 on:
   schedule:
-    # Every Wednesday at 2:00 PM UTC (14:00 UTC)
-    - cron: '30 7 * * 1' 
+    # Every Monday at 4:00 AM UTC
+    - cron: '0 4 * * 1'
   
   # Allow manual trigger for testing
   workflow_dispatch:
