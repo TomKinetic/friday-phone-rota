@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 // ============================================
 // TEAM CONFIGURATION (shared with triage rota)
 // ============================================
@@ -18,10 +21,28 @@ const HOLIDAYS = {
 };
 
 // ============================================
-// PHONE ASSIGNMENT HISTORY (in-memory)
-// In production, this could be stored in a file or database
+// PHONE ASSIGNMENT HISTORY (persisted to file)
 // ============================================
-let PHONE_HISTORY = [];
+const HISTORY_FILE = path.join(__dirname, 'phone-history.json');
+
+function loadHistory() {
+  try {
+    if (fs.existsSync(HISTORY_FILE)) {
+      const raw = fs.readFileSync(HISTORY_FILE, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn('⚠️ Could not read phone-history.json, starting fresh:', err.message);
+  }
+  return [];
+}
+
+function saveHistory(history) {
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
+  console.log(`✅ History saved to ${HISTORY_FILE} (${history.length} entries)`);
+}
+
+let PHONE_HISTORY = loadHistory();
 
 // ============================================
 // HELPER FUNCTIONS
@@ -30,7 +51,7 @@ let PHONE_HISTORY = [];
 function getNextFriday() {
   const today = new Date();
   const dayOfWeek = today.getUTCDay();
-  
+
   // Calculate days until next Friday (5 = Friday)
   let daysUntilFriday;
   if (dayOfWeek <= 3) {
@@ -40,11 +61,11 @@ function getNextFriday() {
     // Thu-Sun: next Friday next week
     daysUntilFriday = 5 + (7 - dayOfWeek);
   }
-  
+
   const friday = new Date(today);
   friday.setUTCDate(today.getUTCDate() + daysUntilFriday);
   friday.setUTCHours(0, 0, 0, 0);
-  
+
   return friday;
 }
 
@@ -62,10 +83,10 @@ function isOnHoliday(person, dateStr) {
 function getAvailableForPhones(friday, monday) {
   const fridayStr = friday.toISOString().split('T')[0];
   const mondayStr = monday.toISOString().split('T')[0];
-  
+
   // Person must be available BOTH Friday (to take) AND Monday (to return)
-  return TEAM.filter(person => 
-    !isOnHoliday(person, fridayStr) && 
+  return TEAM.filter(person =>
+    !isOnHoliday(person, fridayStr) &&
     !isOnHoliday(person, mondayStr)
   );
 }
@@ -76,13 +97,13 @@ function getPhoneCounts() {
     iphone: {},
     android: {}
   };
-  
+
   TEAM.forEach(person => {
     counts.total[person] = 0;
     counts.iphone[person] = 0;
     counts.android[person] = 0;
   });
-  
+
   PHONE_HISTORY.forEach(assignment => {
     if (counts.total[assignment.iphone] !== undefined) {
       counts.total[assignment.iphone]++;
@@ -93,7 +114,7 @@ function getPhoneCounts() {
       counts.android[assignment.android]++;
     }
   });
-  
+
   return counts;
 }
 
@@ -101,38 +122,38 @@ function selectPhoneHolders(available) {
   if (available.length < 2) {
     return null; // Not enough people
   }
-  
+
   const counts = getPhoneCounts();
-  
+
   // Sort by total assignments (least to most)
   const sorted = [...available].sort((a, b) => {
     const countDiff = counts.total[a] - counts.total[b];
     if (countDiff !== 0) return countDiff;
-    
+
     // If tied on total, sort by who hasn't had a phone longest
-    const lastA = [...PHONE_HISTORY].reverse().findIndex(h => 
+    const lastA = [...PHONE_HISTORY].reverse().findIndex(h =>
       h.iphone === a || h.android === a
     );
-    const lastB = [...PHONE_HISTORY].reverse().findIndex(h => 
+    const lastB = [...PHONE_HISTORY].reverse().findIndex(h =>
       h.iphone === b || h.android === b
     );
-    
+
     if (lastA === -1 && lastB === -1) return 0;
     if (lastA === -1) return -1; // a never had phone, pick them
     if (lastB === -1) return 1;  // b never had phone, pick them
     return lastB - lastA; // Pick whoever had it longer ago
   });
-  
+
   // Pick top 2 people with fewest assignments
   const person1 = sorted[0];
   const person2 = sorted[1];
-  
+
   // Decide who gets iPhone vs Android based on their individual phone counts
   const p1iPhone = counts.iphone[person1] || 0;
   const p1Android = counts.android[person1] || 0;
   const p2iPhone = counts.iphone[person2] || 0;
   const p2Android = counts.android[person2] || 0;
-  
+
   // Give iPhone to person who has had it less
   let iphone, android;
   if (p1iPhone - p1Android <= p2iPhone - p2Android) {
@@ -142,27 +163,27 @@ function selectPhoneHolders(available) {
     iphone = person2;
     android = person1;
   }
-  
+
   return { iphone, android };
 }
 
 function selectBackups(available, primary) {
   // Remove primary holders from available pool
-  const backupPool = available.filter(p => 
+  const backupPool = available.filter(p =>
     p !== primary.iphone && p !== primary.android
   );
-  
+
   if (backupPool.length === 0) {
     return { iphoneBackup: null, androidBackup: null };
   }
-  
+
   const counts = getPhoneCounts();
-  
+
   // Sort backup pool by total assignments
-  const sorted = [...backupPool].sort((a, b) => 
+  const sorted = [...backupPool].sort((a, b) =>
     counts.total[a] - counts.total[b]
   );
-  
+
   if (backupPool.length === 1) {
     // Only one backup available - they cover both phones
     return {
@@ -170,7 +191,7 @@ function selectBackups(available, primary) {
       androidBackup: sorted[0]
     };
   }
-  
+
   // Assign different backups for each phone
   return {
     iphoneBackup: sorted[0],
@@ -181,18 +202,18 @@ function selectBackups(available, primary) {
 function generatePhoneRota() {
   const friday = getNextFriday();
   const monday = getFollowingMonday(friday);
-  
-  const fridayFormatted = friday.toLocaleDateString('en-GB', { 
-    day: 'numeric', 
-    month: 'short' 
+
+  const fridayFormatted = friday.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short'
   });
-  const mondayFormatted = monday.toLocaleDateString('en-GB', { 
-    day: 'numeric', 
-    month: 'short' 
+  const mondayFormatted = monday.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short'
   });
-  
+
   const available = getAvailableForPhones(friday, monday);
-  
+
   if (available.length < 2) {
     return {
       error: true,
@@ -202,17 +223,21 @@ function generatePhoneRota() {
       message: '⚠️ Not enough people available for both Friday and Monday'
     };
   }
-  
+
   const primary = selectPhoneHolders(available);
   const backups = selectBackups(available, primary);
-  
-  // Record this assignment
-  PHONE_HISTORY.push({
+
+  // Record this assignment in history
+  const newEntry = {
     iphone: primary.iphone,
     android: primary.android,
     date: friday.toISOString().split('T')[0]
-  });
-  
+  };
+  PHONE_HISTORY.push(newEntry);
+
+  // Save updated history back to file
+  saveHistory(PHONE_HISTORY);
+
   return {
     error: false,
     friday: fridayFormatted,
@@ -230,28 +255,28 @@ function formatForSlack(rota) {
     message += `Available: ${rota.available.join(', ') || 'None'}`;
     return message;
   }
-  
+
   let message = `*📱 MFA Phone Rota: Friday ${rota.friday}*\n\n`;
   message += `_Take home Thursday evening, return Monday ${rota.monday}_\n\n`;
-  
+
   // Primary assignments
   message += `*Primary (taking phones home):*\n`;
   message += `📱 iPhone: *${rota.primary.iphone}*\n`;
   message += `📱 Android: *${rota.primary.android}*\n\n`;
-  
+
   // Backup assignments
   message += `*Backups (cover if primary is ill):*\n`;
   message += `🛡️ iPhone backup: ${rota.backups.iphoneBackup || 'N/A'}\n`;
   message += `🛡️ Android backup: ${rota.backups.androidBackup || 'N/A'}\n\n`;
-  
+
   if (rota.backups.iphoneBackup === rota.backups.androidBackup && rota.backups.iphoneBackup) {
     message += `_⚠️ ${rota.backups.iphoneBackup} is backup for both phones (limited availability)_\n\n`;
   }
-  
+
   // Add holiday info if relevant
   const fridayStr = new Date(rota.friday + ' 2026').toISOString().split('T')[0];
   const mondayStr = new Date(rota.monday + ' 2026').toISOString().split('T')[0];
-  
+
   const holidayNotes = [];
   for (const [person, dates] of Object.entries(HOLIDAYS)) {
     if (dates.includes(fridayStr)) {
@@ -261,32 +286,32 @@ function formatForSlack(rota) {
       holidayNotes.push(`${person} off Mon`);
     }
   }
-  
+
   if (holidayNotes.length > 0) {
     message += `_🏖️ ${holidayNotes.join(' | ')}_`;
   }
-  
+
   return message;
 }
 
 async function postToSlack(message) {
   const webhookUrl = process.env.SLACK_PHONE_WEBHOOK_URL;
-  
+
   if (!webhookUrl) {
     console.error('ERROR: SLACK_PHONE_WEBHOOK_URL not set');
     process.exit(1);
   }
-  
+
   const response = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: message })
   });
-  
+
   if (!response.ok) {
     throw new Error(`Slack API error: ${response.status}`);
   }
-  
+
   console.log('✅ Phone rota posted successfully!');
 }
 
