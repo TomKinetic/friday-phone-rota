@@ -1,77 +1,59 @@
-const fs = require('fs');
-const path = require('path');
+// ============================================
+// TEAM CONFIGURATION
+// ============================================
+
+// Fixed rotation order for phone duty - edit this to change the rotation order
+const ROTATION = ['Angus', 'Tommy', 'Tom', 'Farhad', 'Nadim', 'Abir', 'Zoe'];
 
 // ============================================
-// TEAM CONFIGURATION (shared with triage rota)
-// ============================================
-const TEAM = ['Abir', 'Zoe', 'Angus', 'Tommy', 'Tom', 'Farhad', 'Nadim'];
-
-// ============================================
-// HOLIDAYS - Shared with triage rota
+// HOLIDAYS
 // Format: 'Name': ['YYYY-MM-DD', 'YYYY-MM-DD']
 // ============================================
 const HOLIDAYS = {
-  'Abir': ['2026-02-13', '2026-04-02', '2026-04-07', '2026-05-05', '2026-05-26', '2026-06-12', '2026-07-06', '2026-07-07', '2026-07-08', '2026-11-19', '2026-11-20'],
-  'Zoe': ['2026-02-09', '2026-02-10', '2026-02-11', '2026-02-12', '2026-02-13'],
-  'Angus': ['2026-01-23', '2026-01-26', '2026-01-27', '2026-01-28', '2026-01-29', '2026-01-30', '2026-02-02', '2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05', '2026-03-06', '2026-08-19', '2026-09-01'],
-  'Tom': ['2026-02-09', '2026-05-14', '2026-05-15'],
-  'Farhad': ['2026-01-12', '2026-01-13', '2026-05-29', '2026-02-23', '2026-02-24', '2026-02-25', '2026-02-26', '2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-08'],
-  'Tommy': [],
-  'Nadim': []
+  'Abir':   ['2026-02-13', '2026-04-02', '2026-04-07', '2026-05-05', '2026-05-26', '2026-06-12', '2026-07-06', '2026-07-07', '2026-07-08', '2026-11-19', '2026-11-20'],
+  'Zoe':    ['2026-02-09', '2026-02-10', '2026-02-11', '2026-02-12', '2026-02-13'],
+  'Angus':  ['2026-01-23', '2026-01-26', '2026-01-27', '2026-01-28', '2026-01-29', '2026-01-30', '2026-02-02', '2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05', '2026-03-06', '2026-08-19', '2026-09-01'],
+  'Tom':    ['2026-02-09', '2026-05-14', '2026-05-15', '2026-06-15'],
+  'Farhad': ['2026-01-12', '2026-01-13', '2026-03-19', '2026-03-20', '2026-05-29', '2026-02-23', '2026-02-24', '2026-02-25', '2026-02-26', '2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-08'],
+  'Tommy':  ['2026-07-06', '2026-07-07', '2026-07-08', '2026-07-09', '2026-07-10', '2026-07-13'],
+  'Nadim':  ['2026-03-20', '2026-03-23', '2026-03-24', '2026-05-26', '2026-05-27', '2026-05-28']
 };
 
 // ============================================
-// PHONE ASSIGNMENT HISTORY (persisted to file)
+// SCRIPT - No need to edit below this line
 // ============================================
-const HISTORY_FILE = path.join(__dirname, 'phone-history.json');
 
-function loadHistory() {
-  try {
-    if (fs.existsSync(HISTORY_FILE)) {
-      const raw = fs.readFileSync(HISTORY_FILE, 'utf8');
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.warn('⚠️ Could not read phone-history.json, starting fresh:', err.message);
-  }
-  return [];
-}
-
-function saveHistory(history) {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
-  console.log(`✅ History saved to ${HISTORY_FILE} (${history.length} entries)`);
-}
-
-let PHONE_HISTORY = loadHistory();
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
+// A fixed reference Monday - week index 0 in the rotation
+// Week of 16 Mar 2026 = position 0 (Angus + Tommy are first up)
+const REFERENCE_MONDAY = new Date('2026-03-16T00:00:00Z');
 
 function getNextFriday() {
   const today = new Date();
   const dayOfWeek = today.getUTCDay();
 
-  // Calculate days until next Friday (5 = Friday)
   let daysUntilFriday;
   if (dayOfWeek <= 3) {
-    // Mon-Wed: next Friday this week
     daysUntilFriday = 5 - dayOfWeek;
   } else {
-    // Thu-Sun: next Friday next week
     daysUntilFriday = 5 + (7 - dayOfWeek);
   }
 
   const friday = new Date(today);
   friday.setUTCDate(today.getUTCDate() + daysUntilFriday);
   friday.setUTCHours(0, 0, 0, 0);
-
   return friday;
 }
 
 function getFollowingMonday(friday) {
   const monday = new Date(friday);
-  monday.setUTCDate(friday.getUTCDate() + 3); // Friday + 3 days = Monday
+  monday.setUTCDate(friday.getUTCDate() + 3);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
+}
+
+function getMondayOfWeek(friday) {
+  const monday = new Date(friday);
+  monday.setUTCDate(friday.getUTCDate() - 4);
   monday.setUTCHours(0, 0, 0, 0);
   return monday;
 }
@@ -80,122 +62,59 @@ function isOnHoliday(person, dateStr) {
   return HOLIDAYS[person]?.includes(dateStr) || false;
 }
 
-function getAvailableForPhones(friday, monday) {
+function isAvailable(person, fridayStr, mondayStr) {
+  return !isOnHoliday(person, fridayStr) && !isOnHoliday(person, mondayStr);
+}
+
+function getWeekIndex(friday) {
+  const mondayOfFridaysWeek = getMondayOfWeek(friday);
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const diff = mondayOfFridaysWeek - REFERENCE_MONDAY;
+  return Math.round(diff / msPerWeek);
+}
+
+function selectPrimary(friday, monday) {
   const fridayStr = friday.toISOString().split('T')[0];
   const mondayStr = monday.toISOString().split('T')[0];
+  const weekIndex = getWeekIndex(friday);
+  const size = ROTATION.length;
 
-  // Person must be available BOTH Friday (to take) AND Monday (to return)
-  return TEAM.filter(person =>
-    !isOnHoliday(person, fridayStr) &&
-    !isOnHoliday(person, mondayStr)
-  );
-}
-
-function getPhoneCounts() {
-  const counts = {
-    total: {},
-    iphone: {},
-    android: {}
-  };
-
-  TEAM.forEach(person => {
-    counts.total[person] = 0;
-    counts.iphone[person] = 0;
-    counts.android[person] = 0;
-  });
-
-  PHONE_HISTORY.forEach(assignment => {
-    if (counts.total[assignment.iphone] !== undefined) {
-      counts.total[assignment.iphone]++;
-      counts.iphone[assignment.iphone]++;
+  const picked = [];
+  for (let i = 0; i < size * 2; i++) {
+    const person = ROTATION[(weekIndex + i) % size];
+    if (isAvailable(person, fridayStr, mondayStr) && !picked.includes(person)) {
+      picked.push(person);
+      if (picked.length === 2) break;
     }
-    if (counts.total[assignment.android] !== undefined) {
-      counts.total[assignment.android]++;
-      counts.android[assignment.android]++;
+  }
+
+  if (picked.length < 2) return null;
+  return { iphone: picked[0], android: picked[1] };
+}
+
+function selectBackups(friday, monday, primary) {
+  const fridayStr = friday.toISOString().split('T')[0];
+  const mondayStr = monday.toISOString().split('T')[0];
+  const weekIndex = getWeekIndex(friday);
+  const size = ROTATION.length;
+
+  const picked = [];
+  for (let i = 0; i < size * 2; i++) {
+    const person = ROTATION[(weekIndex + i) % size];
+    if (
+      isAvailable(person, fridayStr, mondayStr) &&
+      person !== primary.iphone &&
+      person !== primary.android &&
+      !picked.includes(person)
+    ) {
+      picked.push(person);
+      if (picked.length === 2) break;
     }
-  });
-
-  return counts;
-}
-
-function selectPhoneHolders(available) {
-  if (available.length < 2) {
-    return null; // Not enough people
   }
 
-  const counts = getPhoneCounts();
-
-  // Sort by total assignments (least to most)
-  const sorted = [...available].sort((a, b) => {
-    const countDiff = counts.total[a] - counts.total[b];
-    if (countDiff !== 0) return countDiff;
-
-    // If tied on total, sort by who hasn't had a phone longest
-    const lastA = [...PHONE_HISTORY].reverse().findIndex(h =>
-      h.iphone === a || h.android === a
-    );
-    const lastB = [...PHONE_HISTORY].reverse().findIndex(h =>
-      h.iphone === b || h.android === b
-    );
-
-    if (lastA === -1 && lastB === -1) return 0;
-    if (lastA === -1) return -1; // a never had phone, pick them
-    if (lastB === -1) return 1;  // b never had phone, pick them
-    return lastB - lastA; // Pick whoever had it longer ago
-  });
-
-  // Pick top 2 people with fewest assignments
-  const person1 = sorted[0];
-  const person2 = sorted[1];
-
-  // Decide who gets iPhone vs Android based on their individual phone counts
-  const p1iPhone = counts.iphone[person1] || 0;
-  const p1Android = counts.android[person1] || 0;
-  const p2iPhone = counts.iphone[person2] || 0;
-  const p2Android = counts.android[person2] || 0;
-
-  // Give iPhone to person who has had it less
-  let iphone, android;
-  if (p1iPhone - p1Android <= p2iPhone - p2Android) {
-    iphone = person1;
-    android = person2;
-  } else {
-    iphone = person2;
-    android = person1;
-  }
-
-  return { iphone, android };
-}
-
-function selectBackups(available, primary) {
-  // Remove primary holders from available pool
-  const backupPool = available.filter(p =>
-    p !== primary.iphone && p !== primary.android
-  );
-
-  if (backupPool.length === 0) {
-    return { iphoneBackup: null, androidBackup: null };
-  }
-
-  const counts = getPhoneCounts();
-
-  // Sort backup pool by total assignments
-  const sorted = [...backupPool].sort((a, b) =>
-    counts.total[a] - counts.total[b]
-  );
-
-  if (backupPool.length === 1) {
-    // Only one backup available - they cover both phones
-    return {
-      iphoneBackup: sorted[0],
-      androidBackup: sorted[0]
-    };
-  }
-
-  // Assign different backups for each phone
   return {
-    iphoneBackup: sorted[0],
-    androidBackup: sorted[1]
+    iphoneBackup: picked[0] || null,
+    androidBackup: picked[1] || null
   };
 }
 
@@ -203,40 +122,30 @@ function generatePhoneRota() {
   const friday = getNextFriday();
   const monday = getFollowingMonday(friday);
 
-  const fridayFormatted = friday.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short'
-  });
-  const mondayFormatted = monday.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short'
-  });
+  const fridayFormatted = friday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const mondayFormatted = monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-  const available = getAvailableForPhones(friday, monday);
+  const fridayStr = friday.toISOString().split('T')[0];
+  const mondayStr = monday.toISOString().split('T')[0];
 
-  if (available.length < 2) {
+  const primary = selectPrimary(friday, monday);
+
+  if (!primary) {
     return {
       error: true,
       friday: fridayFormatted,
       monday: mondayFormatted,
-      available,
       message: '⚠️ Not enough people available for both Friday and Monday'
     };
   }
 
-  const primary = selectPhoneHolders(available);
-  const backups = selectBackups(available, primary);
+  const backups = selectBackups(friday, monday, primary);
 
-  // Record this assignment in history
-  const newEntry = {
-    iphone: primary.iphone,
-    android: primary.android,
-    date: friday.toISOString().split('T')[0]
-  };
-  PHONE_HISTORY.push(newEntry);
-
-  // Save updated history back to file
-  saveHistory(PHONE_HISTORY);
+  const holidayNotes = [];
+  for (const [person, dates] of Object.entries(HOLIDAYS)) {
+    if (dates.includes(fridayStr)) holidayNotes.push(`${person} off Fri`);
+    if (dates.includes(mondayStr)) holidayNotes.push(`${person} off Mon`);
+  }
 
   return {
     error: false,
@@ -244,51 +153,32 @@ function generatePhoneRota() {
     monday: mondayFormatted,
     primary,
     backups,
-    available
+    holidayNotes
   };
 }
 
 function formatForSlack(rota) {
   if (rota.error) {
-    let message = `*📱 MFA Phone Rota - ${rota.friday}*\n\n`;
-    message += `${rota.message}\n\n`;
-    message += `Available: ${rota.available.join(', ') || 'None'}`;
-    return message;
+    return `*📱 MFA Phone Rota: Friday ${rota.friday}*\n\n${rota.message}`;
   }
 
   let message = `*📱 MFA Phone Rota: Friday ${rota.friday}*\n\n`;
   message += `_Take home Thursday evening, return Monday ${rota.monday}_\n\n`;
 
-  // Primary assignments
   message += `*Primary (taking phones home):*\n`;
   message += `📱 iPhone: *${rota.primary.iphone}*\n`;
   message += `📱 Android: *${rota.primary.android}*\n\n`;
 
-  // Backup assignments
   message += `*Backups (cover if primary is ill):*\n`;
   message += `🛡️ iPhone backup: ${rota.backups.iphoneBackup || 'N/A'}\n`;
-  message += `🛡️ Android backup: ${rota.backups.androidBackup || 'N/A'}\n\n`;
+  message += `🛡️ Android backup: ${rota.backups.androidBackup || 'N/A'}\n`;
 
   if (rota.backups.iphoneBackup === rota.backups.androidBackup && rota.backups.iphoneBackup) {
-    message += `_⚠️ ${rota.backups.iphoneBackup} is backup for both phones (limited availability)_\n\n`;
+    message += `\n_⚠️ ${rota.backups.iphoneBackup} is backup for both phones (limited availability)_\n`;
   }
 
-  // Add holiday info if relevant
-  const fridayStr = new Date(rota.friday + ' 2026').toISOString().split('T')[0];
-  const mondayStr = new Date(rota.monday + ' 2026').toISOString().split('T')[0];
-
-  const holidayNotes = [];
-  for (const [person, dates] of Object.entries(HOLIDAYS)) {
-    if (dates.includes(fridayStr)) {
-      holidayNotes.push(`${person} off Fri`);
-    }
-    if (dates.includes(mondayStr)) {
-      holidayNotes.push(`${person} off Mon`);
-    }
-  }
-
-  if (holidayNotes.length > 0) {
-    message += `_🏖️ ${holidayNotes.join(' | ')}_`;
+  if (rota.holidayNotes.length > 0) {
+    message += `\n_🏖️ ${rota.holidayNotes.join(' | ')}_`;
   }
 
   return message;
