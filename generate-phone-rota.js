@@ -4,7 +4,7 @@
 
 // Fixed rotation order for phone duty - edit this to change the rotation order
 // Note: Nadim is on the triage rota but not the phone rota
-const ROTATION = ['Angus', 'Tommy', 'Tom', /* 'Farhad', */ 'Abir', 'Zoe'];
+const ROTATION = ['Angus', 'Tommy', 'Tom', 'Farhad', 'Abir', 'Zoe'];
 
 // ============================================
 // HOLIDAYS
@@ -40,13 +40,12 @@ const HOLIDAYS = {
     '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-30', '2026-11-02', 
     '2026-12-23', '2026-12-24',
   ],
-/* 'Farhad': [
+  'Farhad': [
     '2026-04-16',
     '2026-04-28', '2026-04-29', '2026-04-30', '2026-05-01',
     '2026-05-27', '2026-05-28',
     '2026-06-29', '2026-08-19',
-  ], */
-    
+  ],
   'Tommy': [
     '2026-07-06', '2026-07-07', '2026-07-08', '2026-07-09', '2026-07-10', '2026-07-13',
     '2026-08-14', '2026-08-17',
